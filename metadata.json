@@ -1,0 +1,5 @@
+{
+  "name": "Pubmed chatbot",
+  "description": "A health-focused chatbot that provides personalized information based on user profiles and grounded in PubMed studies, powered by the Gemini API.",
+  "requestFramePermissions": []
+}
