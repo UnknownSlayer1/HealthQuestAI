@@ -14,6 +14,8 @@ interface ChatViewProps {
 }
 
 const MarkdownRenderer: React.FC<{ text: string }> = ({ text }) => {
+  if (!text) return null;
+
   const parseInline = (line: string) => {
     // Bold
     return line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
@@ -41,14 +43,14 @@ const MarkdownRenderer: React.FC<{ text: string }> = ({ text }) => {
   lines.forEach((line, index) => {
     const isUl = line.startsWith('* ') || line.startsWith('- ');
     const isOl = /^\d+\.\s/.test(line);
-    
+
     if ((isUl && listType === 'ol') || (isOl && listType === 'ul') || (!isUl && !isOl)) {
       flushList();
     }
-    
+
     if (isUl && !listType) listType = 'ul';
     if (isOl && !listType) listType = 'ol';
-    
+
     if (isUl) {
       listItems.push(<li key={index} dangerouslySetInnerHTML={{ __html: parseInline(line.substring(2)) }} />);
     } else if (isOl) {
@@ -70,7 +72,9 @@ const MarkdownRenderer: React.FC<{ text: string }> = ({ text }) => {
 };
 
 const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
-  const isModel = message.role === 'model';
+  const isModel = message.role === 'model' || message.role === 'assistant';
+  const content = message.text || message.content || '';
+
   return (
     <div className={`flex items-start gap-4 my-4 ${isModel ? '' : 'justify-end'}`}>
       {isModel && (
@@ -84,10 +88,10 @@ const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
         )}
         {isModel ? (
           <div className="text-white">
-            <MarkdownRenderer text={message.text} />
+            <MarkdownRenderer text={content} />
           </div>
         ) : (
-          <p className="text-white whitespace-pre-wrap">{message.text}</p>
+          <p className="text-white whitespace-pre-wrap">{content}</p>
         )}
         {message.sources && message.sources.length > 0 && (
           <div className="mt-4 pt-3 border-t border-slate-600">
@@ -115,20 +119,39 @@ const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
 
 const ChatView: React.FC<ChatViewProps> = ({ messages, isLoading, onPromptClick, userProfile }) => {
   const chatContainerRef = React.useRef<HTMLDivElement>(null);
+  const lastMessageRef = React.useRef<HTMLDivElement>(null);
+  const prevMsgLen = React.useRef(messages.length);
 
   React.useEffect(() => {
-    chatContainerRef.current?.scrollTo(0, chatContainerRef.current.scrollHeight);
-  }, [messages, isLoading]);
+    if (messages.length > prevMsgLen.current) {
+      const lastMsg = messages[messages.length - 1];
+      const isUser = lastMsg.role === 'user';
+
+      if (isUser) {
+        chatContainerRef.current?.scrollTo({
+          top: chatContainerRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      } else {
+        setTimeout(() => {
+          lastMessageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+      }
+    }
+    prevMsgLen.current = messages.length;
+  }, [messages]);
 
   if (messages.length === 0) {
     return <WelcomeScreen onPromptClick={onPromptClick} userProfile={userProfile} />;
   }
-  
+
   return (
     <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 md:p-6">
       <div className="max-w-4xl mx-auto">
         {messages.map((msg, index) => (
-          <ChatMessage key={index} message={msg} />
+          <div key={index} ref={index === messages.length - 1 ? lastMessageRef : null}>
+            <ChatMessage message={msg} />
+          </div>
         ))}
         {isLoading && (
           <div className="flex items-start gap-4 my-4">
